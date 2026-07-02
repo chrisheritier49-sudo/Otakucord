@@ -1,0 +1,6 @@
+{
+  "name": "OtakuCord",
+  "description": "Un Discord immersif dédié aux passionnés d'animes, mangas et de culture japonaise, équipé de salons Gacha, de Trivia, d'un player vocal lofi et d'une IA Senpai.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
