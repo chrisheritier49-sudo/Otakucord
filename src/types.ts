@@ -22,7 +22,7 @@ export interface User {
   notifications?: Notification[]; // User notifications
 }
 
-export type ChannelType = 'text' | 'voice';
+export type ChannelType = 'text' | 'voice' | 'quiz' | 'roles' | 'trivia' | 'watch-party';
 
 export interface Channel {
   id: string;
@@ -32,6 +32,7 @@ export interface Channel {
   category: string;
   rules?: string; // Customizable salon/group rules
   creatorId?: string; // Creator who can manage rules
+  icon?: string; // Customizable icon or emoji for the channel
 }
 
 export interface Guild {

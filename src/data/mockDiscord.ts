@@ -90,84 +90,6 @@ export const INITIAL_EVENTS: WatchPartyEvent[] = [
 ];
 
 export const INITIAL_MESSAGES: Record<string, Message[]> = {
-  'ol-general': [
-    {
-      id: 'm1',
-      channelId: 'ol-general',
-      guildId: 'otaku-lounge',
-      author: { username: 'RemBot', avatar: '🌸', title: 'Waifu de l\'année', isBot: true, botStyle: 'text-pink-400 bg-pink-950/40 border border-pink-500/20 px-1.5 py-0.5 rounded text-[10px]' },
-      content: 'Bienvenue sur OtakuCord ! 🌟 Ici, tu peux discuter d\'animes, faire des quizz dans #🏆-trivia-quizz ou collectionner des cartes légendaires dans #🎰-gacha-collector ! Amuse-toi bien !',
-      timestamp: 'Il y a 2 heures'
-    },
-    {
-      id: 'm2',
-      channelId: 'ol-general',
-      guildId: 'otaku-lounge',
-      author: { username: 'NarutoBot', avatar: '🍥', title: '7ème Hokage', isBot: true, botStyle: 'text-orange-400 bg-orange-950/40 border border-orange-500/20 px-1.5 py-0.5 rounded text-[10px]' },
-      content: 'Yo ! Datebayo ! Ce salon est trop stylé ! Qui est chaud pour un bol de Ramen chez Ichiraku ? 🍜',
-      timestamp: 'Il y a 1 heure'
-    }
-  ],
-  'ol-news': [
-    {
-      id: 'mnw1',
-      channelId: 'ol-news',
-      guildId: 'otaku-lounge',
-      author: { username: 'Oracle', avatar: '🧠', title: 'Trivia Master', isBot: true },
-      content: '🚨 ANNONCE OFFICIELLE : Le prochain film du Studio Ghibli a enfin été teasé ! Les premières esquisses de Miyazaki montrent une atmosphère très mystique. On prépare une Watch Party dès sa sortie !',
-      timestamp: 'Il y a 3 heures'
-    }
-  ],
-  'ol-planning': [
-    {
-      id: 'mpl1',
-      channelId: 'ol-planning',
-      guildId: 'otaku-lounge',
-      author: { username: 'RemBot', avatar: '🌸', title: 'Waifu de l\'année', isBot: true },
-      content: '📅 Calendrier de cette semaine :\n• Mercredi : One Piece - Épisode 1115 🏴‍☠️\n• Vendredi : Tower of God Saison 2 🗼\n• Dimanche : Oshi no Ko Saison 2 🎤',
-      timestamp: 'Il y a 5 heures'
-    }
-  ],
-  'ol-shonen': [
-    {
-      id: 'msh1',
-      channelId: 'ol-shonen',
-      guildId: 'otaku-lounge',
-      author: { username: 'GokuBot', avatar: '👊', title: 'Super Saiyan Blue', isBot: true },
-      content: 'La transformation ultime de Luffy en Gear 5 est incroyable, mais est-ce qu\'elle peut rivaliser avec le Super Saiyan Blue de base ? Je me pose sincèrement la question ! 🤔🔥',
-      timestamp: 'Il y a 1 heure'
-    }
-  ],
-  'ol-seinen': [
-    {
-      id: 'mse1',
-      channelId: 'ol-seinen',
-      guildId: 'otaku-lounge',
-      author: { username: 'SasukeBot', avatar: '👁️', title: 'Uchiwa Survivant', isBot: true },
-      content: 'Berserker est un chef-d\'œuvre absolu de narration sombre. Le destin de Guts face à Griffith montre la vraie nature de la tragédie et de la persévérance.',
-      timestamp: 'Il y a 4 heures'
-    }
-  ],
-  'ol-jrpg': [
-    {
-      id: 'mjr1',
-      channelId: 'ol-jrpg',
-      guildId: 'otaku-lounge',
-      author: { username: 'Oracle', avatar: '🧠', title: 'J-RPG Expert', isBot: true },
-      content: 'Persona 6 approche à grands pas selon les rumeurs ! Quel thème de couleur pensez-vous qu\'ils vont choisir après le rouge de P5 et le bleu de P3 ?',
-      timestamp: 'Il y a 2 heures'
-    }
-  ],
-  'ol-cosplays': [
-    {
-      id: 'mco1',
-      channelId: 'ol-cosplays',
-      guildId: 'otaku-lounge',
-      author: { username: 'RemBot', avatar: '🌸', title: 'Cosplayer Pro', isBot: true },
-      content: 'Je viens de finir mon cosplay de Marin Kitagawa pour la prochaine convention ! 🎭 Le travail sur la perruque m\'a pris au moins 15 heures, mais le résultat est génial !',
-      timestamp: 'Il y a 6 heures'
-    }
-  ],
   'ol-recommande-ia': [
     {
       id: 'mri1',
@@ -175,7 +97,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       guildId: 'otaku-lounge',
       author: { username: 'Senpai', avatar: '🔮', title: 'AI Anime Expert', isBot: true, botStyle: 'text-purple-400 bg-purple-950/40 border border-purple-500/20 px-1.5 py-0.5 rounded text-[10px]' },
       content: 'Bonjour ! Je suis @Senpai. Ici, tu peux me demander n\'importe quelle recommandation d\'anime ou de manga ! Dis-moi ce que tu as aimé et je m\'occupe du reste. 🌸✨',
-      timestamp: 'Il y a 10 heures'
+      timestamp: 'À l\'instant'
     }
   ],
   'ol-quiz': [
@@ -185,7 +107,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       guildId: 'otaku-lounge',
       author: { username: 'DeepSeek', avatar: '🧠', title: 'AI Host', isBot: true, botStyle: 'text-indigo-400 bg-indigo-950/40 border border-indigo-500/20 px-1.5 py-0.5 rounded text-[10px]' },
       content: 'Bonjour ! Préparez-vous à tester vos connaissances avec le DeepSeek AI Quiz !',
-      timestamp: 'Aujourd\'hui à 12:00'
+      timestamp: 'À l\'instant'
     }
   ],
   'ol-trivia': [
@@ -195,7 +117,7 @@ export const INITIAL_MESSAGES: Record<string, Message[]> = {
       guildId: 'otaku-lounge',
       author: { username: 'Oracle', avatar: '🧠', title: 'Trivia Master', isBot: true, botStyle: 'text-yellow-400 bg-yellow-950/40 border border-yellow-500/20 px-1.5 py-0.5 rounded text-[10px]' },
       content: 'Prêt pour tester ta culture Otaku ? 🏆 Réponds à la question en cours ou demande une nouvelle question. Chaque bonne réponse te rapporte 50 Otaku Coins ! 🔥',
-      timestamp: 'Il y a 1 heure'
+      timestamp: 'À l\'instant'
     }
   ]
 };

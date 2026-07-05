@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Hash, Volume2, Send, Users, Coins, Award, Sparkles, MessageSquare, 
   Settings, ChevronDown, Check, User as UserIcon, Bell, HelpCircle,
-  Menu, X, Globe, Tv, Shield, LogOut, Database, Paperclip, Clock, Image, Video, Trash2, Camera
+  Menu, X, Globe, Tv, Shield, LogOut, Database, Paperclip, Clock, Image, Video, Trash2, Camera,
+  Compass, PlusCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PRESET_GUILDS, INITIAL_MESSAGES, PRESET_ROLES } from './data/mockDiscord';
-import { User, Message, Guild, Channel } from './types';
+import { User, Message, Guild, Channel, ChannelType } from './types';
 import { QuizSection } from './components/QuizSection';
 import TriviaSection from './components/TriviaSection';
 import VoiceRoom from './components/VoiceRoom';
@@ -14,6 +15,8 @@ import WatchPartySection from './components/WatchPartySection';
 import RolesSection from './components/RolesSection';
 import AuthScreen from './components/AuthScreen';
 import { HomeFeed } from './components/HomeFeed';
+import DmChatSection from './components/DmChatSection';
+import dbLauncherImg from './assets/images/otakucord_db_launcher_1782948569257.jpg';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
@@ -64,7 +67,7 @@ export default function App() {
     };
   });
 
-  const [activeView, setActiveView] = useState<'home' | 'guild'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'guild' | 'dm'>('home');
 
   useEffect(() => {
     localStorage.setItem('otakucord_user_v2', JSON.stringify(user));
@@ -106,7 +109,7 @@ export default function App() {
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [friends, setFriends] = useState<string[]>(() => {
     const saved = localStorage.getItem('otaku_friends_v2');
-    return saved ? JSON.parse(saved) : ['NarutoBot', 'GokuBot'];
+    return saved ? JSON.parse(saved) : [];
   });
   const [friendRequests, setFriendRequests] = useState<any[]>(() => {
     const saved = localStorage.getItem('otaku_friend_requests_v2');
@@ -133,13 +136,47 @@ export default function App() {
   const [firstPvMessage, setFirstPvMessage] = useState('');
   const [pvMessageInput, setPvMessageInput] = useState('');
 
+  // --- Private DMs & Group Chats States ---
+  const [activeDmId, setActiveDmId] = useState<string | null>(null);
+  const [privateGroups, setPrivateGroups] = useState<any[]>(() => {
+    const saved = localStorage.getItem('otaku_private_groups_v3');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('otaku_private_groups_v3', JSON.stringify(privateGroups));
+  }, [privateGroups]);
+
+  // --- Report & Moderation States ---
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTargetName, setReportTargetName] = useState('');
+  const [reportReason, setReportReason] = useState('Harcèlement / Comportement toxique');
+  const [reportDetails, setReportDetails] = useState('');
+
+  // --- Group Chat Creation States ---
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupAvatar, setNewGroupAvatar] = useState('💬');
+  const [newGroupMembers, setNewGroupMembers] = useState<string[]>([]);
+
   // --- Channel Creator & Custom Rules States ---
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelDesc, setNewChannelDesc] = useState('');
   const [newChannelCategory, setNewChannelCategory] = useState('Salons Principaux');
-  const [newChannelType, setNewChannelType] = useState<'text' | 'voice'>('text');
+  const [newChannelType, setNewChannelType] = useState<ChannelType>('text');
   const [newChannelRules, setNewChannelRules] = useState('');
+  const [newChannelIcon, setNewChannelIcon] = useState('💬');
+  const [channelIconLoading, setChannelIconLoading] = useState(false);
+  const channelIconInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Server/Guild Creation States ---
+  const [showCreateGuildModal, setShowCreateGuildModal] = useState(false);
+  const [newGuildName, setNewGuildName] = useState('');
+  const [newGuildIcon, setNewGuildIcon] = useState('🌸');
+  const [newGuildBanner, setNewGuildBanner] = useState('bg-gradient-to-r from-pink-500 via-rose-500 to-red-500');
+  const [guildIconLoading, setGuildIconLoading] = useState(false);
+  const guildIconInputRef = useRef<HTMLInputElement>(null);
 
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [editedRulesText, setEditedRulesText] = useState('');
@@ -312,6 +349,136 @@ export default function App() {
       setAvatarUploadLoading(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleChannelIconFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert("Veuillez sélectionner un fichier image valide (JPG, PNG, etc.).");
+      return;
+    }
+
+    setChannelIconLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64File = event.target?.result as string;
+        const uploadRes = await fetch('/api/cloudinary/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file: base64File,
+            fileType: 'image',
+            noExpiry: true
+          })
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          setNewChannelIcon(uploadData.url);
+        } else {
+          const errData = await uploadRes.json();
+          console.error("Cloudinary channel icon upload failed:", errData);
+          alert(`Erreur d'upload: ${errData.error || 'Impossible d\'enregistrer l\'image'}`);
+        }
+      } catch (err) {
+        console.error("Channel icon upload error:", err);
+        alert("Une erreur est survenue lors de l'envoi de l'image.");
+      } finally {
+        setChannelIconLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGuildIconFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert("Veuillez sélectionner un fichier image valide (JPG, PNG, etc.).");
+      return;
+    }
+
+    setGuildIconLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64File = event.target?.result as string;
+        const uploadRes = await fetch('/api/cloudinary/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file: base64File,
+            fileType: 'image',
+            noExpiry: true
+          })
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          setNewGuildIcon(uploadData.url);
+        } else {
+          const errData = await uploadRes.json();
+          console.error("Cloudinary guild icon upload failed:", errData);
+          alert(`Erreur d'upload: ${errData.error || 'Impossible d\'enregistrer l\'image'}`);
+        }
+      } catch (err) {
+        console.error("Guild icon upload error:", err);
+        alert("Une erreur est survenue lors de l'envoi de l'image.");
+      } finally {
+        setGuildIconLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const getOrCreateSpecialChannel = (type: ChannelType, defaultName: string, defaultDesc: string, defaultCategory: string) => {
+    if (!activeGuild) return;
+    
+    // Find if activeGuild already has a channel of this type (or id)
+    let chan = activeGuild.channels.find(c => c.type === type || (type === 'quiz' && c.id === 'ol-quiz') || (type === 'roles' && c.id === 'ol-roles') || (type === 'watch-party' && c.id === 'ol-watch-party') || (type === 'trivia' && c.id === 'ol-trivia'));
+    
+    if (chan) {
+      setActiveChannel(chan);
+      setActiveView('guild');
+      return;
+    }
+    
+    // Create on the fly
+    const newChan: Channel = {
+      id: `special-chan-${type}-${Date.now()}`,
+      name: defaultName,
+      type: type,
+      description: defaultDesc,
+      category: defaultCategory,
+      rules: '1. Soyez respectueux et amusez-vous !',
+      creatorId: user.id,
+      icon: type === 'quiz' ? '🧠' : type === 'roles' ? '🛡️' : type === 'watch-party' ? '📺' : '💬'
+    };
+    
+    // Add to guild
+    const updatedGuilds = guilds.map(g => {
+      if (g.id === activeGuild.id) {
+        return {
+          ...g,
+          channels: [...g.channels, newChan]
+        };
+      }
+      return g;
+    });
+    setGuilds(updatedGuilds);
+    
+    // Set active
+    const targetGuild = updatedGuilds.find(g => g.id === activeGuild.id);
+    if (targetGuild) {
+      setActiveGuild(targetGuild);
+      const createdChan = targetGuild.channels.find(c => c.id === newChan.id);
+      if (createdChan) setActiveChannel(createdChan);
+    }
+    setActiveView('guild');
   };
 
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -572,6 +739,29 @@ export default function App() {
       const chan = targetGuild.channels.find(c => c.id === newChan.id);
       if (chan) setActiveChannel(chan);
     }
+  };
+
+  const handleCreateGuild = (name: string, icon: string, bannerColor: string) => {
+    const newGuildId = `custom-guild-${Date.now()}`;
+    const newGuild: Guild = {
+      id: newGuildId,
+      name: name.trim() || "Mon Serveur Otaku",
+      icon: icon || '🌸',
+      banner: bannerColor || 'bg-gradient-to-r from-pink-500 via-rose-500 to-red-500',
+      themeColor: 'indigo',
+      channels: [
+        { id: `chan-gen-${Date.now()}`, name: 'général', type: 'text', description: 'Salon général pour votre serveur.', category: 'GÉNÉRAL' }
+      ]
+    };
+    const updatedGuilds = [...guilds, newGuild];
+    setGuilds(updatedGuilds);
+    setUser(prev => ({
+      ...prev,
+      joinedGuilds: [...(prev.joinedGuilds || []), newGuildId]
+    }));
+    setActiveGuild(newGuild);
+    setActiveChannel(newGuild.channels[0]);
+    setActiveView('guild');
   };
 
   const handleUpdateChannelRules = (channelId: string, rulesText: string) => {
@@ -913,10 +1103,10 @@ export default function App() {
   const avatarList = ['🦊', '🍥', '🌸', '👊', '🥚', '👁️', '🎴', '🥦', '⚡', '👑', '🍙', '⚔️', '👾', '🐱', '🔥'];
 
   // Check custom tabs/views
-  const isQuizChannel = activeChannel.id === 'ol-quiz';
-  const isTriviaChannel = activeChannel.id === 'ol-trivia';
-  const isWatchPartyChannel = activeChannel.id === 'ol-watch-party';
-  const isRolesChannel = activeChannel.id === 'ol-roles';
+  const isQuizChannel = activeChannel?.id === 'ol-quiz' || activeChannel?.type === 'quiz';
+  const isTriviaChannel = activeChannel?.id === 'ol-trivia' || activeChannel?.type === 'trivia';
+  const isWatchPartyChannel = activeChannel?.id === 'ol-watch-party' || activeChannel?.type === 'watch-party';
+  const isRolesChannel = activeChannel?.id === 'ol-roles' || activeChannel?.type === 'roles';
 
   // Quick helper to fetch role category colors or list
   const getUserLevelsBadges = (rolesIds: string[] = []) => {
@@ -946,7 +1136,7 @@ export default function App() {
           {/* Pulsing rounded-3xl container for the gorgeous launcher icon */}
           <div className="relative w-36 h-36 mb-6 p-1 bg-gradient-to-tr from-pink-500 to-indigo-500 rounded-3xl shadow-[0_0_50px_rgba(236,72,153,0.35)]">
             <img 
-              src="/src/assets/images/otakucord_db_launcher_1782948569257.jpg" 
+              src={dbLauncherImg} 
               alt="OtakuCord Database Launcher" 
               className="w-full h-full object-cover rounded-[22px]"
               referrerPolicy="no-referrer"
@@ -1013,13 +1203,13 @@ export default function App() {
         {/* Discord Home Logo */}
         <div 
           onClick={() => setActiveView('home')}
-          className={`w-12 h-12 rounded-3xl bg-slate-800 hover:bg-indigo-500 text-white flex items-center justify-center text-xl cursor-pointer hover:rounded-2xl transition-all relative group ${
-            activeView === 'home' ? 'bg-indigo-500 rounded-2xl' : ''
+          className={`w-12 h-12 rounded-3xl bg-slate-800 hover:bg-indigo-500 text-white flex items-center justify-center text-xl cursor-pointer hover:rounded-2xl transition-all relative group overflow-hidden p-0.5 bg-gradient-to-tr from-pink-500 to-indigo-500 ${
+            activeView === 'home' ? 'rounded-2xl' : ''
           }`}
         >
-          <span className="text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          </span>
+          <div className="w-full h-full bg-slate-900 rounded-[22px] group-hover:rounded-[14px] overflow-hidden transition-all flex items-center justify-center">
+            <img src={dbLauncherImg} alt="OtakuCord Logo" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+          </div>
           {/* Active Indicator Bar */}
           <div className={`absolute left-0 w-1 bg-white rounded-r transition-all duration-300 ${
             activeView === 'home' ? 'h-10 top-1 animate-pulse' : 'h-0 group-hover:h-5'
@@ -1033,7 +1223,7 @@ export default function App() {
         <div className="w-8 h-[2px] bg-slate-800 my-1 rounded" />
 
         {/* Dynamic Guild List */}
-        {PRESET_GUILDS.filter(g => user.joinedGuilds?.includes(g.id)).map(guild => {
+        {guilds.filter(g => user.joinedGuilds?.includes(g.id)).map(guild => {
           const isActive = activeView === 'guild' && activeGuild.id === guild.id;
           return (
             <div
@@ -1046,7 +1236,11 @@ export default function App() {
                 isActive ? 'bg-slate-800 border-2 border-indigo-500 rounded-2xl' : 'bg-slate-900 hover:bg-slate-850'
               }`}
             >
-              <span>{guild.icon}</span>
+              {guild.icon && (guild.icon.startsWith('http') || guild.icon.startsWith('data:')) ? (
+                <img src={guild.icon} className="w-8 h-8 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <span>{guild.icon}</span>
+              )}
               <div className={`absolute left-0 w-1 bg-white rounded-r transition-all duration-300 ${
                 isActive ? 'h-8' : 'h-0 group-hover:h-4'
               }`} />
@@ -1062,80 +1256,300 @@ export default function App() {
 
       {/* 2. CHANNELS & STATE SIDEBAR (Middle Left) - Hidden on mobile unless drawer open */}
       <div className="w-60 bg-slate-900 hidden md:flex flex-col justify-between shrink-0 border-r border-slate-950/60">
-        <div>
-          {/* Guild Banner header */}
-          <div className="h-12 border-b border-slate-950 px-4 flex items-center justify-between font-bold text-sm text-white bg-slate-900/60 shadow-sm relative overflow-hidden">
-            <span className="tracking-wide z-10">{activeGuild.name}</span>
-            <ChevronDown size={16} className="text-slate-400 z-10 shrink-0" />
-            <div className={`absolute top-0 left-0 w-full h-1 opacity-20 ${activeGuild.banner}`} />
-          </div>
+        {activeView === 'home' || activeView === 'dm' ? (
+          <div className="flex flex-col h-full justify-between">
+            <div className="flex flex-col">
+              {/* Home header */}
+              <div className="h-12 border-b border-slate-950 px-4 flex items-center justify-between font-bold text-sm text-white bg-slate-900/60 shadow-sm relative overflow-hidden">
+                <span className="tracking-wide z-10 flex items-center gap-1.5">
+                  <span>Accueil Otaku</span>
+                  <span className="bg-indigo-950 text-indigo-300 px-1 py-0.5 rounded text-[8px] font-mono animate-pulse">v3</span>
+                </span>
+                <div className="absolute top-0 left-0 w-full h-1 opacity-20 bg-gradient-to-r from-indigo-500 to-purple-500" />
+              </div>
 
-          {/* Create Channel Action Bar */}
-          <div className="px-3 py-1.5 border-b border-slate-950/60 flex items-center justify-between bg-slate-950/20">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Salons de discussion</span>
-            <button
-              onClick={() => {
-                setNewChannelName('');
-                setNewChannelDesc('');
-                setNewChannelRules('1. Restez poli et respectueux.\n2. Pas de spam ni de publicité.\n3. Tout contenu offensant ou pornographique est strictement banni.');
-                setNewChannelCategory('DISCUSSIONS');
-                setNewChannelType('text');
-                setShowCreateChannelModal(true);
-              }}
-              className="px-2 py-0.5 rounded bg-slate-950 hover:bg-indigo-600 text-indigo-400 hover:text-white transition-all text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 border border-slate-800"
-              title="Créer un nouveau salon"
-              id="btn-create-channel"
-            >
-              <span>+ Créer</span>
-            </button>
-          </div>
-
-          {/* Channels Scroll Area */}
-          <div className="p-2 overflow-y-auto max-h-[calc(100vh-120px)] flex flex-col gap-4">
-            {/* Group channels by category */}
-            {['DISCUSSIONS', 'OTAKU FUN', 'ADMINISTRATION', 'ACTIVITÉS', 'GÉNÉRAL', 'RECOMMANDATIONS', 'SALONS VOCAUX'].map(category => {
-              const catChannels = activeGuild.channels.filter(c => c.category === category);
-              if (catChannels.length === 0) return null;
-
-              return (
-                <div key={category} className="flex flex-col gap-0.5">
-                  <div className="text-[10px] font-black tracking-wider text-slate-500 px-2 py-1 uppercase flex items-center justify-between">
-                    <span>{category}</span>
+              <div className="p-3 flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setActiveView('home');
+                    setActiveDmId(null);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all flex items-center justify-between ${
+                    activeView === 'home'
+                      ? 'bg-indigo-500/15 text-indigo-400 font-bold border border-indigo-500/10 shadow-md'
+                      : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Compass size={14} className={activeView === 'home' ? 'text-indigo-400' : 'text-slate-400'} />
+                    <span>Découverte Serveurs</span>
                   </div>
+                </button>
 
-                  {catChannels.map(channel => {
-                    const isActive = activeChannel.id === channel.id;
-                    const isVoice = channel.type === 'voice';
+                <button
+                  onClick={() => setShowCreateGuildModal(true)}
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all flex items-center gap-2.5 text-emerald-400 hover:bg-emerald-950/20 hover:text-emerald-300 border border-transparent hover:border-emerald-500/20"
+                >
+                  <PlusCircle size={14} />
+                  <span className="font-bold">Créer un serveur</span>
+                </button>
+              </div>
+
+              {/* SECTION: MESSAGES PRIVÉS */}
+              <div className="px-3 mt-4 flex flex-col">
+                <div className="flex items-center justify-between px-1 mb-1.5">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Messages Privés 💬</span>
+                  <button
+                    onClick={() => {
+                      // Propose dynamic list of users to open a chat
+                      const targetUser = prompt("Entrez le pseudo de l'Otaku avec qui vous voulez chatter (ex: NarutoBot, SasukeBot, GokuBot, RemBot) :");
+                      if (targetUser) {
+                        const botsList = ['NarutoBot', 'SasukeBot', 'GokuBot', 'RemBot'];
+                        const match = botsList.find(b => b.toLowerCase() === targetUser.toLowerCase());
+                        const finalId = match || targetUser;
+                        setActiveView('dm');
+                        setActiveDmId(finalId);
+                      }
+                    }}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold px-1"
+                    title="Démarrer un nouveau chat privé"
+                  >
+                    + Nouveau
+                  </button>
+                </div>
+
+                <div className="space-y-0.5 max-h-[170px] overflow-y-auto pr-1">
+                  {Array.from(new Set([
+                    ...Object.keys(privateMessages || {}),
+                    ...(friends || [])
+                  ])).filter(k => k && !k.startsWith('group-') && k !== user.id).map(dmId => {
+                    const isSelected = activeView === 'dm' && activeDmId === dmId;
+                    // Get details
+                    const botsDetails: Record<string, { username: string; avatar: string; status: string }> = {
+                      'NarutoBot': { username: 'NarutoBot', avatar: '🍥', status: 'online' },
+                      'SasukeBot': { username: 'SasukeBot', avatar: '👁️', status: 'dnd' },
+                      'GokuBot': { username: 'GokuBot', avatar: '👊', status: 'idle' },
+                      'RemBot': { username: 'RemBot', avatar: '🌸', status: 'online' }
+                    };
+                    const details = botsDetails[dmId] || { username: dmId, avatar: '👤', status: 'offline' };
 
                     return (
                       <div
-                        key={channel.id}
-                        onClick={() => handleChannelSelect(channel)}
-                        className={`group px-2 py-2 rounded-md flex items-center justify-between cursor-pointer transition-colors ${
-                          isActive 
-                            ? 'bg-slate-800 text-white' 
+                        key={dmId}
+                        className={`group w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-500/10 shadow'
                             : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                         }`}
+                        onClick={() => {
+                          setActiveView('dm');
+                          setActiveDmId(dmId);
+                        }}
                       >
-                        <div className="flex items-center gap-2 truncate text-sm">
-                          {isVoice ? (
-                            <Volume2 size={16} className="text-slate-400 group-hover:text-slate-200 shrink-0" />
-                          ) : (
-                            <Hash size={16} className="text-slate-400 group-hover:text-slate-200 shrink-0" />
-                          )}
-                          <span className="truncate font-medium">{channel.name}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="relative shrink-0">
+                            <span className="text-sm select-none">{details.avatar}</span>
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-slate-900 ${
+                              details.status === 'online' ? 'bg-emerald-500' :
+                              details.status === 'dnd' ? 'bg-rose-500' :
+                              details.status === 'idle' ? 'bg-amber-500' : 'bg-slate-500'
+                            }`} />
+                          </div>
+                          <span className="truncate font-medium">{details.username}</span>
                         </div>
-                        {isVoice && connectedVoiceChannel === channel.name && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                        )}
+
+                        {/* Quick cross to purge/supprimer chat */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Delete chat action
+                            const confirmDelete = confirm(`🌸 Supprimer la discussion privée avec ${details.username} ? L'historique sera purgé.`);
+                            if (confirmDelete) {
+                              setPrivateMessages((prev: any) => {
+                                const updated = { ...prev };
+                                delete updated[dmId];
+                                return updated;
+                              });
+                              if (activeDmId === dmId) {
+                                setActiveView('home');
+                                setActiveDmId(null);
+                              }
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-900 text-slate-500 hover:text-rose-400 rounded transition-all shrink-0"
+                          title="Supprimer cette discussion"
+                        >
+                          <Trash2 size={11} />
+                        </button>
                       </div>
                     );
                   })}
                 </div>
-              );
-            })}
+              </div>
+
+              {/* SECTION: CHATS DE GROUPE */}
+              <div className="px-3 mt-4 flex flex-col">
+                <div className="flex items-center justify-between px-1 mb-1.5">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Groupes Privés 👥</span>
+                  <button
+                    onClick={() => {
+                      // Open group create prompt or modal
+                      const name = prompt("Entrez le nom du groupe privé (ex: Clan Otaku 🌸) :");
+                      if (name) {
+                        const avatar = prompt("Entrez un emoji pour l'icône du groupe (ex: 🔥, ⚔️, 🎌) :", "💬");
+                        const newGrp = {
+                          id: `group-${Date.now()}`,
+                          name: name,
+                          avatar: avatar || '💬',
+                          members: ['NarutoBot', 'RemBot']
+                        };
+                        setPrivateGroups(prev => [...prev, newGrp]);
+                        alert(`✨ Groupe "${name}" créé avec succès !`);
+                        setActiveView('dm');
+                        setActiveDmId(newGrp.id);
+                      }
+                    }}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold px-1"
+                    title="Créer un groupe de discussion privé"
+                  >
+                    + Créer
+                  </button>
+                </div>
+
+                <div className="space-y-0.5 max-h-[170px] overflow-y-auto pr-1">
+                  {privateGroups.map(grp => {
+                    const isSelected = activeView === 'dm' && activeDmId === grp.id;
+                    return (
+                      <div
+                        key={grp.id}
+                        className={`group w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-500/10 shadow'
+                            : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                        }`}
+                        onClick={() => {
+                          setActiveView('dm');
+                          setActiveDmId(grp.id);
+                        }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm shrink-0 select-none">{grp.avatar}</span>
+                          <span className="truncate font-medium">{grp.name}</span>
+                        </div>
+
+                        {/* Quick cross to quitter le groupe */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const confirmLeave = confirm(`👥 Quitter le groupe privé "${grp.name}" ? Vous ne recevrez plus de messages.`);
+                            if (confirmLeave) {
+                              setPrivateGroups(prev => prev.filter(g => g.id !== grp.id));
+                              setPrivateMessages((prev: any) => {
+                                const updated = { ...prev };
+                                delete updated[grp.id];
+                                return updated;
+                              });
+                              if (activeDmId === grp.id) {
+                                setActiveView('home');
+                                setActiveDmId(null);
+                              }
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-900 text-slate-500 hover:text-rose-400 rounded transition-all shrink-0"
+                          title="Quitter ce groupe"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
           </div>
-        </div>
+        ) : (
+          <div>
+            {/* Guild Banner header */}
+            <div className="h-12 border-b border-slate-950 px-4 flex items-center justify-between font-bold text-sm text-white bg-slate-900/60 shadow-sm relative overflow-hidden">
+              <span className="tracking-wide z-10">{activeGuild?.name || ''}</span>
+              <ChevronDown size={16} className="text-slate-400 z-10 shrink-0" />
+              <div className={`absolute top-0 left-0 w-full h-1 opacity-20 ${activeGuild?.banner || ''}`} />
+            </div>
+
+            {/* Create Channel Action Bar */}
+            <div className="px-3 py-1.5 border-b border-slate-950/60 flex items-center justify-between bg-slate-950/20">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Salons de discussion</span>
+              <button
+                onClick={() => {
+                  setNewChannelName('');
+                  setNewChannelDesc('');
+                  setNewChannelRules('1. Restez poli et respectueux.\n2. Pas de spam ni de publicité.\n3. Tout contenu offensant ou pornographique est strictement banni.');
+                  setNewChannelCategory('DISCUSSIONS');
+                  setNewChannelType('text');
+                  setShowCreateChannelModal(true);
+                }}
+                className="px-2 py-0.5 rounded bg-slate-950 hover:bg-indigo-600 text-indigo-400 hover:text-white transition-all text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 border border-slate-800"
+                title="Créer un nouveau salon"
+                id="btn-create-channel"
+              >
+                <span>+ Créer</span>
+              </button>
+            </div>
+
+            {/* Channels Scroll Area */}
+            <div className="p-2 overflow-y-auto max-h-[calc(100vh-120px)] flex flex-col gap-4">
+              {/* Group channels by category */}
+              {['DISCUSSIONS', 'OTAKU FUN', 'ADMINISTRATION', 'ACTIVITÉS', 'GÉNÉRAL', 'RECOMMANDATIONS', 'SALONS VOCAUX'].map(category => {
+                const catChannels = (activeGuild?.channels || []).filter(c => c.category === category);
+                if (catChannels.length === 0) return null;
+
+                return (
+                  <div key={category} className="flex flex-col gap-0.5">
+                    <div className="text-[10px] font-black tracking-wider text-slate-500 px-2 py-1 uppercase flex items-center justify-between">
+                      <span>{category}</span>
+                    </div>
+
+                    {catChannels.map(channel => {
+                      const isActive = activeChannel?.id === channel.id;
+                      const isVoice = channel.type === 'voice';
+
+                      return (
+                        <div
+                          key={channel.id}
+                          onClick={() => handleChannelSelect(channel)}
+                          className={`group px-2 py-2 rounded-md flex items-center justify-between cursor-pointer transition-colors ${
+                            isActive 
+                              ? 'bg-slate-800 text-white' 
+                              : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate text-sm">
+                            {channel.icon ? (
+                              channel.icon.startsWith('http') || channel.icon.startsWith('data:') ? (
+                                <img src={channel.icon} className="w-4 h-4 rounded-full object-cover shrink-0" alt="" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="text-sm shrink-0">{channel.icon}</span>
+                              )
+                            ) : isVoice ? (
+                              <Volume2 size={16} className="text-slate-400 group-hover:text-slate-200 shrink-0" />
+                            ) : (
+                              <Hash size={16} className="text-slate-400 group-hover:text-slate-200 shrink-0" />
+                            )}
+                            <span className="truncate font-medium">{channel.name}</span>
+                          </div>
+                          {isVoice && connectedVoiceChannel === channel.name && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Firestore Sync Status Badge */}
         {isFirebaseEnabled && (
@@ -1231,7 +1645,7 @@ export default function App() {
               <div>
                 <div className="p-4 border-b border-slate-950 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">🌸</span>
+                    <img src={dbLauncherImg} alt="Logo" className="w-6 h-6 rounded-md object-cover" />
                     <span className="font-bold text-white text-base">OtakuCord Menu</span>
                   </div>
                   <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-white p-1">
@@ -1241,68 +1655,231 @@ export default function App() {
 
                 {/* Guild Quick Selector */}
                 <div className="p-3 bg-slate-950/40 border-b border-slate-950 flex gap-2.5 overflow-x-auto">
-                  {PRESET_GUILDS.map(g => (
+                  {guilds.map(g => (
                     <button 
                       key={g.id}
-                      onClick={() => handleGuildSelect(g)}
+                      onClick={() => {
+                        handleGuildSelect(g);
+                        setActiveView('guild');
+                        setIsMobileMenuOpen(false);
+                      }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-                        activeGuild.id === g.id 
+                        activeView === 'guild' && activeGuild.id === g.id 
                           ? 'bg-pink-600 text-white' 
                           : 'bg-slate-900 border border-slate-800 text-slate-400'
                       }`}
                     >
-                      <span>{g.icon}</span>
+                      <span>{g.icon && (g.icon.startsWith('http') || g.icon.startsWith('data:')) ? '🖼️' : g.icon}</span>
                       <span>{g.name}</span>
                     </button>
                   ))}
                 </div>
-                
-                {/* Create Channel Mobile */}
-                <div className="px-4 pt-4 pb-2">
-                  <button
-                    onClick={() => {
-                      setNewChannelName('');
-                      setNewChannelDesc('');
-                      setNewChannelRules('1. Restez poli et respectueux.\n2. Pas de spam ni de publicité.\n3. Tout contenu offensant ou pornographique est strictement banni.');
-                      setNewChannelCategory('DISCUSSIONS');
-                      setNewChannelType('text');
-                      setShowCreateChannelModal(true);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
-                  >
-                    <span>+ Créer un nouveau salon</span>
-                  </button>
-                </div>
 
-                {/* Mobile Channels List */}
-                <div className="p-3 overflow-y-auto max-h-[calc(100vh-190px)] flex flex-col gap-4">
-                  {['DISCUSSIONS', 'OTAKU FUN', 'ADMINISTRATION', 'ACTIVITÉS', 'GÉNÉRAL', 'RECOMMANDATIONS', 'SALONS VOCAUX'].map(category => {
-                    const catChannels = activeGuild.channels.filter(c => c.category === category);
-                    if (catChannels.length === 0) return null;
+                {activeView === 'home' || activeView === 'dm' ? (
+                  /* Mobile DMs & Home Navigation List */
+                  <div className="p-3 overflow-y-auto max-h-[calc(100vh-190px)] flex flex-col gap-4">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => {
+                          setActiveView('home');
+                          setActiveDmId(null);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all flex items-center gap-2.5 ${
+                          activeView === 'home'
+                            ? 'bg-indigo-500/15 text-indigo-400 font-bold border border-indigo-500/10 shadow-md'
+                            : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200 border border-transparent'
+                        }`}
+                      >
+                        <Compass size={14} className={activeView === 'home' ? 'text-indigo-400' : 'text-slate-400'} />
+                        <span>Découverte Serveurs</span>
+                      </button>
 
-                    return (
-                      <div key={category} className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-black text-slate-500 px-2 py-0.5 uppercase block">{category}</span>
-                        {catChannels.map(channel => {
-                          const isActive = activeChannel.id === channel.id;
+                      <button
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setShowCreateGuildModal(true);
+                        }}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all flex items-center gap-2.5 text-emerald-400 hover:bg-emerald-950/20 hover:text-emerald-300 border border-transparent"
+                      >
+                        <PlusCircle size={14} />
+                        <span className="font-bold">Créer un serveur</span>
+                      </button>
+                    </div>
+
+                    {/* MESSAGES PRIVÉS SECTION */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center justify-between px-1 mb-1.5">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Messages Privés 💬</span>
+                        <button
+                          onClick={() => {
+                            const targetUser = prompt("Entrez le pseudo de l'Otaku avec qui vous voulez chatter (ex: NarutoBot, SasukeBot, GokuBot, RemBot) :");
+                            if (targetUser) {
+                              const botsList = ['NarutoBot', 'SasukeBot', 'GokuBot', 'RemBot'];
+                              const match = botsList.find(b => b.toLowerCase() === targetUser.toLowerCase());
+                              const finalId = match || targetUser;
+                              setActiveView('dm');
+                              setActiveDmId(finalId);
+                              setIsMobileMenuOpen(false);
+                            }
+                          }}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold"
+                        >
+                          + Nouveau
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 max-h-[160px] overflow-y-auto">
+                        {Array.from(new Set([
+                          ...Object.keys(privateMessages || {}),
+                          ...(friends || [])
+                        ])).filter(k => k && !k.startsWith('group-') && k !== user.id).map(dmId => {
+                          const isSelected = activeView === 'dm' && activeDmId === dmId;
+                          const botsDetails: Record<string, { username: string; avatar: string; status: string }> = {
+                            'NarutoBot': { username: 'NarutoBot', avatar: '🍥', status: 'online' },
+                            'SasukeBot': { username: 'SasukeBot', avatar: '👁️', status: 'dnd' },
+                            'GokuBot': { username: 'GokuBot', avatar: '👊', status: 'idle' },
+                            'RemBot': { username: 'RemBot', avatar: '🌸', status: 'online' }
+                          };
+                          const details = botsDetails[dmId] || { username: dmId, avatar: '👤', status: 'offline' };
+
                           return (
-                            <button
-                              key={channel.id}
-                              onClick={() => handleChannelSelect(channel)}
-                              className={`w-full text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center gap-2 ${
-                                isActive ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                            <div
+                              key={dmId}
+                              className={`w-full flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer ${
+                                isSelected
+                                  ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-500/10'
+                                  : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
+                              onClick={() => {
+                                setActiveView('dm');
+                                setActiveDmId(dmId);
+                                setIsMobileMenuOpen(false);
+                              }}
                             >
-                              <Hash size={14} className="text-slate-500" />
-                              <span>{channel.name}</span>
-                            </button>
+                              <span className="text-sm shrink-0">{details.avatar}</span>
+                              <span className="truncate font-medium">{details.username}</span>
+                            </div>
                           );
                         })}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+
+                    {/* GROUPES PRIVÉS SECTION */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center justify-between px-1 mb-1.5">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Groupes Privés 👥</span>
+                        <button
+                          onClick={() => {
+                            const name = prompt("Nom du groupe :");
+                            if (name) {
+                              const avatar = prompt("Emoji pour le groupe :", "💬");
+                              const newGrp = {
+                                id: `group-${Date.now()}`,
+                                name: name,
+                                avatar: avatar || '💬',
+                                members: ['NarutoBot', 'RemBot']
+                              };
+                              setPrivateGroups(prev => [...prev, newGrp]);
+                              setActiveView('dm');
+                              setActiveDmId(newGrp.id);
+                              setIsMobileMenuOpen(false);
+                            }
+                          }}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold"
+                        >
+                          + Créer
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                        {privateGroups.map(grp => {
+                          const isSelected = activeView === 'dm' && activeDmId === grp.id;
+                          return (
+                            <div
+                              key={grp.id}
+                              className={`w-full flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-all text-xs cursor-pointer ${
+                                isSelected
+                                  ? 'bg-indigo-950/40 text-indigo-300 border border-indigo-500/10 shadow'
+                                  : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                              }`}
+                              onClick={() => {
+                                setActiveView('dm');
+                                setActiveDmId(grp.id);
+                                setIsMobileMenuOpen(false);
+                              }}
+                            >
+                              <span className="text-sm shrink-0">{grp.avatar}</span>
+                              <span className="truncate font-medium">{grp.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Original Mobile Channels List for Server view */
+                  <>
+                    {/* Create Channel Mobile */}
+                    <div className="px-4 pt-4 pb-2">
+                      <button
+                        onClick={() => {
+                          setNewChannelName('');
+                          setNewChannelDesc('');
+                          setNewChannelRules('1. Restez poli et respectueux.\n2. Pas de spam ni de publicité.\n3. Tout contenu offensant ou pornographique est strictement banni.');
+                          setNewChannelCategory('DISCUSSIONS');
+                          setNewChannelType('text');
+                          setShowCreateChannelModal(true);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white transition-all text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg"
+                      >
+                        <span>+ Créer un nouveau salon</span>
+                      </button>
+                    </div>
+
+                    <div className="p-3 overflow-y-auto max-h-[calc(100vh-240px)] flex flex-col gap-4">
+                      {['DISCUSSIONS', 'OTAKU FUN', 'ADMINISTRATION', 'ACTIVITÉS', 'GÉNÉRAL', 'RECOMMANDATIONS', 'SALONS VOCAUX'].map(category => {
+                        const catChannels = activeGuild?.channels?.filter(c => c.category === category) || [];
+                        if (catChannels.length === 0) return null;
+
+                        return (
+                          <div key={category} className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black text-slate-500 px-2 py-0.5 uppercase block">{category}</span>
+                            {catChannels.map(channel => {
+                              const isActive = activeChannel.id === channel.id;
+                              return (
+                                <button
+                                  key={channel.id}
+                                  onClick={() => {
+                                    handleChannelSelect(channel);
+                                    setIsMobileMenuOpen(false);
+                                  }}
+                                  className={`w-full text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center gap-2 ${
+                                    isActive ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  }`}
+                                >
+                                  {channel.icon ? (
+                                    channel.icon.startsWith('http') || channel.icon.startsWith('data:') ? (
+                                      <img src={channel.icon} className="w-4 h-4 rounded-full object-cover shrink-0" alt="" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <span className="text-sm shrink-0">{channel.icon}</span>
+                                    )
+                                  ) : channel.type === 'voice' ? (
+                                    <Volume2 size={14} className="text-slate-500" />
+                                  ) : (
+                                    <Hash size={14} className="text-slate-500" />
+                                  )}
+                                  <span>{channel.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Mobile Drawer Footer with user info */}
@@ -1338,12 +1915,24 @@ export default function App() {
             >
               <Menu size={18} />
             </button>
-            <div className="flex items-center gap-1 text-sm font-bold text-white truncate">
-              <Hash size={16} className="text-slate-500 shrink-0" />
-              <span className="truncate">{activeChannel.name}</span>
-            </div>
+            {activeView === 'home' ? (
+              <div className="flex items-center gap-1 text-sm font-bold text-white truncate">
+                <Compass size={16} className="text-indigo-400 shrink-0" />
+                <span className="truncate">Découverte</span>
+              </div>
+            ) : activeView === 'dm' ? (
+              <div className="flex items-center gap-1 text-sm font-bold text-white truncate">
+                <MessageSquare size={16} className="text-indigo-400 shrink-0" />
+                <span className="truncate">Messagerie</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-sm font-bold text-white truncate">
+                <Hash size={16} className="text-slate-500 shrink-0" />
+                <span className="truncate">{activeChannel.name}</span>
+              </div>
+            )}
             {/* Rules Button if rules exist or user is creator of the channel */}
-            {(activeChannel.rules || activeChannel.creatorId === user.id) && (
+            {activeView !== 'home' && (activeChannel.rules || activeChannel.creatorId === user.id) && (
               <button
                 onClick={() => {
                   setEditedRulesText(activeChannel.rules || '');
@@ -1357,7 +1946,7 @@ export default function App() {
               </button>
             )}
           </div>
-
+ 
           <div className="flex items-center gap-2">
             {/* Quick Gacha/Trivia/Watch parties icons for mobile shortcut */}
             <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-850/60 text-yellow-400 font-mono text-xs font-bold">
@@ -1372,9 +1961,78 @@ export default function App() {
             </button>
           </div>
         </div>
-
+ 
         {/* Custom check for Active voice channel */}
-        {connectedVoiceChannel ? (
+        {activeView === 'home' ? (
+          <HomeFeed 
+            availableGuilds={guilds} 
+            joinedGuilds={user.joinedGuilds || []} 
+            onJoinGuild={(guildId) => {
+              setUser(prev => {
+                const updatedJoined = [...(prev.joinedGuilds || []), guildId];
+                return { ...prev, joinedGuilds: updatedJoined };
+              });
+              // Select the newly joined guild
+              const target = guilds.find(g => g.id === guildId);
+              if (target) {
+                setActiveGuild(target);
+                setActiveChannel(target.channels[0]);
+                setActiveView('guild');
+              }
+            }}
+            onCreateGuild={() => setShowCreateGuildModal(true)}
+            user={user}
+            onOpenReportModal={(targetName) => {
+              setReportTargetName(targetName);
+              setShowReportModal(true);
+            }}
+            friends={friends}
+            setFriends={setFriends}
+            friendRequests={friendRequests}
+            setFriendRequests={setFriendRequests}
+            setActiveView={setActiveView}
+            setActiveDmId={setActiveDmId}
+            setPrivateMessages={setPrivateMessages}
+          />
+        ) : activeView === 'dm' && activeDmId ? (
+          <DmChatSection 
+            activeDmId={activeDmId}
+            user={user}
+            privateMessages={privateMessages}
+            setPrivateMessages={setPrivateMessages}
+            privateGroups={privateGroups}
+            setPrivateGroups={setPrivateGroups}
+            friends={friends}
+            setFriends={setFriends}
+            friendRequests={friendRequests}
+            setFriendRequests={setFriendRequests}
+            onOpenReportModal={(targetName) => {
+              setReportTargetName(targetName);
+              setShowReportModal(true);
+            }}
+            onDeleteDiscussion={(dmId) => {
+              setPrivateMessages((prev: any) => {
+                const updated = { ...prev };
+                delete updated[dmId];
+                return updated;
+              });
+              setActiveView('home');
+              setActiveDmId(null);
+            }}
+            onLeaveGroup={(groupId) => {
+              setPrivateGroups(prev => prev.filter(g => g.id !== groupId));
+              setPrivateMessages((prev: any) => {
+                const updated = { ...prev };
+                delete updated[groupId];
+                return updated;
+              });
+              setActiveView('home');
+              setActiveDmId(null);
+            }}
+            setActiveView={setActiveView}
+            setActiveDmId={setActiveDmId}
+          />
+        ) : connectedVoiceChannel ? (
           <VoiceRoom 
             user={user} 
             channelName={connectedVoiceChannel} 
@@ -1729,68 +2387,62 @@ export default function App() {
 
         {/* MOBILE BOTTOM NAVIGATION BAR */}
         <div className="h-14 bg-slate-950 border-t border-slate-900/80 md:hidden flex justify-around items-center shrink-0 z-10 px-2">
-          {/* 1. Chat Tab */}
+          {/* 1. Discovery / Feed Tab */}
           <button 
             onClick={() => {
-              // Switch to general if in a custom app channel
-              if (isQuizChannel || isTriviaChannel || isWatchPartyChannel || isRolesChannel) {
-                const textChan = activeGuild.channels.find(c => c.type === 'text' && c.id !== 'ol-quiz' && c.id !== 'ol-trivia' && c.id !== 'ol-watch-party' && c.id !== 'ol-roles');
-                if (textChan) setActiveChannel(textChan);
-              }
+              setActiveView('home');
+              setActiveDmId(null);
             }}
             className={`flex flex-col items-center gap-0.5 py-1 text-center shrink-0 ${
-              !isQuizChannel && !isTriviaChannel && !isWatchPartyChannel && !isRolesChannel 
-                ? 'text-pink-500' 
+              activeView === 'home' 
+                ? 'text-pink-500 font-bold' 
                 : 'text-slate-400'
             }`}
           >
-            <MessageSquare size={16} />
-            <span className="text-[9px] font-bold">💬 Chat</span>
+            <Compass size={17} />
+            <span className="text-[9px] font-bold">🧭 Découverte</span>
           </button>
 
-          {/* 2. Direct Watch Party Tab */}
+          {/* 2. Messages Privés Tab */}
           <button 
             onClick={() => {
-              const chan = activeGuild.channels.find(c => c.id === 'ol-watch-party');
-              if (chan) setActiveChannel(chan);
+              setActiveView('dm');
+              if (!activeDmId) {
+                // Default to NarutoBot or first active DM
+                const dmKeys = Object.keys(privateMessages || {});
+                if (dmKeys.length > 0) {
+                  setActiveDmId(dmKeys[0]);
+                } else {
+                  setActiveDmId('NarutoBot');
+                }
+              }
             }}
-            className={`flex flex-col items-center gap-0.5 py-1 text-center shrink-0 ${
-              isWatchPartyChannel ? 'text-pink-500' : 'text-slate-400'
+            className={`flex flex-col items-center gap-0.5 py-1 text-center shrink-0 relative ${
+              activeView === 'dm' 
+                ? 'text-pink-500 font-bold' 
+                : 'text-slate-400'
             }`}
           >
-            <Tv size={16} />
-            <span className="text-[9px] font-bold">📺 Direct</span>
+            <MessageSquare size={17} />
+            <span className="text-[9px] font-bold">💬 Privé</span>
           </button>
 
-          {/* 3. Quiz Tab */}
+          {/* 3. Server Chats Tab */}
           <button 
             onClick={() => {
-              const chan = activeGuild.channels.find(c => c.id === 'ol-quiz');
-              if (chan) setActiveChannel(chan);
+              setActiveView('guild');
             }}
             className={`flex flex-col items-center gap-0.5 py-1 text-center shrink-0 ${
-              isQuizChannel || isTriviaChannel ? 'text-pink-500' : 'text-slate-400'
+              activeView === 'guild' 
+                ? 'text-pink-500 font-bold' 
+                : 'text-slate-400'
             }`}
           >
-            <Coins size={16} />
-            <span className="text-[9px] font-bold">🧠 Quiz</span>
+            <Users size={17} />
+            <span className="text-[9px] font-bold">🏠 Serveurs</span>
           </button>
 
-          {/* 4. Roles Manager Tab */}
-          <button 
-            onClick={() => {
-              const chan = activeGuild.channels.find(c => c.id === 'ol-roles');
-              if (chan) setActiveChannel(chan);
-            }}
-            className={`flex flex-col items-center gap-0.5 py-1 text-center shrink-0 ${
-              isRolesChannel ? 'text-pink-500' : 'text-slate-400'
-            }`}
-          >
-            <Shield size={16} />
-            <span className="text-[9px] font-bold">🛡️ Rôles</span>
-          </button>
-
-          {/* 5. Profile Trigger */}
+          {/* 4. Profile Trigger */}
           <button 
             onClick={() => {
               setEditUsername(user.username);
@@ -1800,17 +2452,17 @@ export default function App() {
             }}
             className="flex flex-col items-center gap-0.5 py-1 text-center text-slate-400 shrink-0"
           >
-            <Settings size={16} />
+            <Settings size={17} />
             <span className="text-[9px] font-bold">⚙️ Profil</span>
           </button>
 
-          {/* 6. Mobile Logout */}
+          {/* 5. Mobile Logout */}
           <button 
             onClick={handleLogout}
             className="flex flex-col items-center gap-0.5 py-1 text-center text-rose-400 shrink-0"
           >
-            <LogOut size={16} />
-            <span className="text-[9px] font-bold">Déconnexion</span>
+            <LogOut size={17} />
+            <span className="text-[9px] font-bold">Quitter</span>
           </button>
         </div>
 
@@ -2265,16 +2917,20 @@ service cloud.firestore {
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-black uppercase text-slate-400 tracking-wider">Type de salon</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
                     {[
-                      { val: 'text', label: 'Salon Textuel', icon: <Hash size={14} /> },
-                      { val: 'voice', label: 'Salon Vocal', icon: <Volume2 size={14} /> }
+                      { val: 'text', label: 'Salon Textuel 💬', icon: <Hash size={12} /> },
+                      { val: 'voice', label: 'Salon Vocal 🔊', icon: <Volume2 size={12} /> },
+                      { val: 'quiz', label: 'Quiz IA 🧠', icon: <Coins size={12} /> },
+                      { val: 'roles', label: 'Rôles 🛡️', icon: <Shield size={12} /> },
+                      { val: 'trivia', label: 'Trivia Master 🏆', icon: <Award size={12} /> },
+                      { val: 'watch-party', label: 'Watch Party 🎬', icon: <Tv size={12} /> }
                     ].map(type => (
                       <button
                         key={type.val}
                         type="button"
                         onClick={() => setNewChannelType(type.val as any)}
-                        className={`p-2.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 justify-center ${
+                        className={`p-2 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 justify-center ${
                           newChannelType === type.val
                             ? 'bg-indigo-950/30 border-indigo-500/30 text-indigo-300'
                             : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-300'
@@ -2286,9 +2942,62 @@ service cloud.firestore {
                     ))}
                   </div>
                 </div>
+
+                {/* Photo / Icône de salon */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-black uppercase text-slate-400 tracking-wider">Photo / Icône du salon</label>
+                  <div className="flex items-center gap-3 bg-slate-950 p-3 border border-slate-800 rounded-xl">
+                    <div className="w-10 h-10 rounded-xl border border-slate-700 overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center relative shadow-inner">
+                      {newChannelIcon && (newChannelIcon.startsWith('http') || newChannelIcon.startsWith('data:') || newChannelIcon.length > 4) ? (
+                        <img src={newChannelIcon} alt="Icone" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-lg select-none">{newChannelIcon || '💬'}</span>
+                      )}
+                      {channelIconLoading && (
+                        <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
+                          <div className="w-4 h-4 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={channelIconInputRef}
+                          onChange={handleChannelIconFileSelect}
+                          accept="image/*"
+                          className="hidden"
+                          disabled={channelIconLoading}
+                        />
+                        <button
+                          type="button"
+                          disabled={channelIconLoading}
+                          onClick={() => channelIconInputRef.current?.click()}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-650 hover:bg-indigo-600 text-white font-bold text-xs transition-all flex items-center gap-1 shadow"
+                        >
+                          <Camera size={11} />
+                          <span>{channelIconLoading ? "Envoi..." : "Uploader Photo"}</span>
+                        </button>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {['💬', '🎮', '🔊', '🧠', '🛡️', '🏆', '🎬', '🌸', '⚔️'].map(em => (
+                          <button
+                            key={em}
+                            type="button"
+                            onClick={() => setNewChannelIcon(em)}
+                            className={`w-6 h-6 rounded flex items-center justify-center text-xs hover:bg-slate-850 ${newChannelIcon === em ? 'bg-indigo-950 border border-indigo-500 text-white' : 'bg-slate-900 border border-slate-800 text-slate-400'}`}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-2 mt-4">
+              <div className="flex gap-2 mt-2">
                 <button
                   onClick={() => setShowCreateChannelModal(false)}
                   className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-750 transition-colors rounded-xl font-bold text-xs text-slate-300"
@@ -2308,7 +3017,8 @@ service cloud.firestore {
                       category: newChannelCategory,
                       type: newChannelType,
                       rules: newChannelRules || "Pas de règles spécifiques.",
-                      creatorId: user.id
+                      creatorId: user.id,
+                      icon: newChannelIcon
                     };
                     handleAddChannel(newChan);
                     setShowCreateChannelModal(false);
@@ -2316,6 +3026,151 @@ service cloud.firestore {
                   className="flex-1 py-2.5 bg-indigo-650 hover:bg-indigo-600 transition-all rounded-xl font-bold text-xs text-white"
                 >
                   Créer le salon
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 8. CREATE SERVEUR / GUILD MODAL */}
+      <AnimatePresence>
+        {showCreateGuildModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+            onClick={() => setShowCreateGuildModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 15 }}
+              className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative text-slate-100 flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pb-2 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-sans font-black text-lg text-white flex items-center gap-2 uppercase">
+                  <Compass size={20} className="text-pink-500" /> CRÉER TON SERVEUR OTAKU
+                </h3>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-black uppercase text-slate-400 tracking-wider">Nom du serveur</label>
+                  <input
+                    type="text"
+                    value={newGuildName}
+                    onChange={(e) => setNewGuildName(e.target.value)}
+                    placeholder="ex: Le Repaire des Shinobis"
+                    className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-pink-500 text-sm font-bold"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-black uppercase text-slate-400 tracking-wider">Icône du serveur</label>
+                  <div className="flex items-center gap-3 bg-slate-950 p-3 border border-slate-800 rounded-xl">
+                    <div className="w-12 h-12 rounded-xl border border-slate-700 overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center relative shadow-inner">
+                      {newGuildIcon && (newGuildIcon.startsWith('http') || newGuildIcon.startsWith('data:') || newGuildIcon.length > 4) ? (
+                        <img src={newGuildIcon} alt="Icone Serveur" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-2xl select-none">{newGuildIcon || '🌸'}</span>
+                      )}
+                      {guildIconLoading && (
+                        <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
+                          <div className="w-4 h-4 border border-pink-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={guildIconInputRef}
+                          onChange={handleGuildIconFileSelect}
+                          accept="image/*"
+                          className="hidden"
+                          disabled={guildIconLoading}
+                        />
+                        <button
+                          type="button"
+                          disabled={guildIconLoading}
+                          onClick={() => guildIconInputRef.current?.click()}
+                          className="px-2.5 py-1 rounded-lg bg-pink-650 hover:bg-pink-600 text-white font-bold text-xs transition-all flex items-center gap-1 shadow"
+                        >
+                          <Camera size={11} />
+                          <span>{guildIconLoading ? "Envoi..." : "Uploader Photo"}</span>
+                        </button>
+                      </div>
+                      <div className="flex gap-1 flex-wrap max-h-16 overflow-y-auto pr-1">
+                        {['🌸', '⚔️', '🐉', '🍥', '🎮', '📚', '📺', '🎧', '🍃', '🦊', '🔮', '⛩️', '🍜', '🍱'].map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => setNewGuildIcon(emoji)}
+                            className={`w-6 h-6 rounded flex items-center justify-center text-xs hover:bg-slate-850 ${
+                              newGuildIcon === emoji 
+                                ? 'bg-pink-950 border border-pink-500 text-white' 
+                                : 'bg-slate-900 border border-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-black uppercase text-slate-400 tracking-wider">Bannière & Thème</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { name: 'Crépuscule Rose', val: 'bg-gradient-to-r from-pink-500 via-rose-500 to-red-500' },
+                      { name: 'Abysse Indigo', val: 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600' },
+                      { name: 'Forêt de Konoha', val: 'bg-gradient-to-r from-green-500 via-emerald-600 to-teal-600' },
+                      { name: 'Flambée Solaire', val: 'bg-gradient-to-r from-amber-500 via-orange-600 to-red-600' }
+                    ].map(banner => (
+                      <button
+                        key={banner.val}
+                        type="button"
+                        onClick={() => setNewGuildBanner(banner.val)}
+                        className={`p-2.5 rounded-lg border text-xs font-bold transition-all flex flex-col gap-1.5 items-center justify-center relative overflow-hidden ${
+                          newGuildBanner === banner.val
+                            ? 'border-pink-500 text-white shadow-md'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        <div className={`w-full h-3 rounded ${banner.val} mb-1`} />
+                        <span>{banner.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => setShowCreateGuildModal(false)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-750 transition-colors rounded-xl font-bold text-xs text-slate-300"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    if (!newGuildName.trim()) {
+                      alert("Veuillez saisir un nom pour le serveur.");
+                      return;
+                    }
+                    handleCreateGuild(newGuildName, newGuildIcon, newGuildBanner);
+                    setShowCreateGuildModal(false);
+                    setNewGuildName('');
+                  }}
+                  className="flex-1 py-2.5 bg-pink-600 hover:bg-pink-500 transition-all rounded-xl font-bold text-xs text-white shadow-lg shadow-pink-600/25"
+                >
+                  Créer le serveur
                 </button>
               </div>
             </motion.div>
@@ -2594,6 +3449,106 @@ service cloud.firestore {
                     Envoyer
                   </button>
                 </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 9. REPORT / MODERATION MODAL */}
+      <AnimatePresence>
+        {showReportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+            onClick={() => setShowReportModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 15 }}
+              className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative text-slate-100 flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pb-2 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-sans font-black text-base text-white flex items-center gap-2">
+                  <span className="text-rose-500">🚨</span>
+                  <span>Signaler un comportement</span>
+                </h3>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-400 leading-relaxed mb-1">
+                La sécurité de notre communauté Otaku est notre priorité. Votre rapport sera analysé anonymement par nos modérateurs IA & Humains.
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Cible du signalement
+                  </label>
+                  <div className="px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs font-bold text-rose-400">
+                    @{reportTargetName}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Motif principal
+                  </label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                  >
+                    <option>Harcèlement / Comportement toxique</option>
+                    <option>Spam / Publicité non désirée</option>
+                    <option>Contenu choquant / Gore / NSFW</option>
+                    <option>Usurpation d\'identité</option>
+                    <option>Autre infraction aux CGU</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                    Détails ou preuves (optionnel)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    placeholder="Décrivez brièvement la situation ou copiez un extrait de message suspect..."
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-750 transition-colors rounded-xl font-bold text-xs text-slate-300"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert(`✅ Votre signalement contre @${reportTargetName} pour "${reportReason}" a bien été transmis aux modérateurs OtakuCord.\n\nNous prendrons les sanctions nécessaires sous 2 heures.`);
+                    setShowReportModal(false);
+                    setReportDetails('');
+                  }}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 transition-all rounded-xl font-bold text-xs text-white shadow-lg shadow-rose-600/25"
+                >
+                  Envoyer le rapport
+                </button>
               </div>
             </motion.div>
           </motion.div>

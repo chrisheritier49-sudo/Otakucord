@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, isFirebaseEnabled } from '../lib/firebase';
+import dbLauncherImg from '../assets/images/otakucord_db_launcher_1782948569257.jpg';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -44,6 +45,7 @@ const COUNTRIES = [
 
 export default function AuthScreen({ onAuthSuccess, firebaseActive }: AuthScreenProps) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'phone'>('login');
+  const [showTermsModal, setShowTermsModal] = useState(false);
   
   // Fields
   const [email, setEmail] = useState('');
@@ -571,8 +573,8 @@ export default function AuthScreen({ onAuthSuccess, firebaseActive }: AuthScreen
         {/* Logo / Header */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-16 h-16 p-0.5 bg-gradient-to-tr from-pink-500 to-indigo-500 rounded-2xl shadow-[0_0_30px_rgba(236,72,153,0.25)] relative mb-3">
-            <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-2xl">
-              🔮
+            <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-2xl overflow-hidden">
+              <img src={dbLauncherImg} alt="OtakuCord Logo" className="w-full h-full object-cover" />
             </div>
             <div className="absolute -bottom-1 -right-1 bg-pink-500 text-[9px] font-black px-1.5 py-0.5 rounded-full font-mono text-white tracking-wider uppercase border border-slate-950">
               live
@@ -1256,7 +1258,90 @@ export default function AuthScreen({ onAuthSuccess, firebaseActive }: AuthScreen
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* Conditions d'utilisation Link */}
+        <div className="text-center mt-4">
+          <button
+            type="button"
+            onClick={() => setShowTermsModal(true)}
+            className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors font-mono uppercase tracking-wider hover:underline"
+          >
+            ⚖️ Conditions d'utilisation (CGU) & Confidentialité
+          </button>
+        </div>
       </div>
+
+      {/* ⚖️ CGU / TERMS OF USE MODAL */}
+      <AnimatePresence>
+        {showTermsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 backdrop-blur-md"
+            onClick={() => setShowTermsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative text-slate-200 flex flex-col gap-4 max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pb-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-sans font-black text-xs tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400 uppercase flex items-center gap-2">
+                  <span>⚖️ CONDITIONS D'UTILISATION (CGU)</span>
+                </h3>
+                <button
+                  onClick={() => setShowTermsModal(false)}
+                  className="text-slate-500 hover:text-white text-xs font-bold font-mono"
+                >
+                  [FERMER]
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-300 space-y-4 font-sans leading-relaxed pr-1 overflow-y-auto">
+                <p className="text-indigo-400 font-bold">Bienvenue sur OtakuCord, le Quartier Général des passionnés d'animes, mangas et gaming !</p>
+                <p>En créant un compte ou en accédant à OtakuCord, vous acceptez sans réserve les présentes Conditions Générales d'Utilisation (CGU) :</p>
+                
+                <div>
+                  <h4 className="font-bold text-white text-xs mb-1">1. Respect de la Communauté 🌸</h4>
+                  <p>Aucun comportement toxique, harcèlement, insulte, ou contenu offensant/pornographique ne sera toléré. Les salons sont modérés et tout écart peut entraîner un bannissement permanent de votre adresse IP ou de votre compte.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-white text-xs mb-1">2. Contenu Utilisateur & Propriété 🎨</h4>
+                  <p>En postant des messages, fanarts, images, ou salons de discussion, vous accordez à OtakuCord une licence d'affichage pour faire vivre la plateforme. Ne partagez pas de contenu protégé par des droits d'auteur qui ne vous appartiennent pas.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-white text-xs mb-1">3. Données Personnelles & Confidentialité 🔐</h4>
+                  <p>Vos données d'authentification (email, numéro de téléphone si utilisé) sont enregistrées de manière sécurisée par Google Firebase. Les photos de profil ou de salons importées sont stockées via Cloudinary de façon permanente. Nous ne vendons en aucun cas vos données à des tiers.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-white text-xs mb-1">4. Pièces & Récompenses Virtuelles (Otaku Coins) 🪙</h4>
+                  <p>Les pièces d'or accumulées sur OtakuCord sont strictement virtuelles. Elles n'ont aucune valeur monétaire réelle. Elles permettent de jouer à des jeux de quiz, de voter, d'obtenir des titres et d'acheter des cartes de collection anime.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-white text-xs mb-1">5. Limitation de Responsabilité ⚙️</h4>
+                  <p>OtakuCord s'efforce de fournir un service de haute qualité, mais ne saurait être tenu responsable d'éventuelles interruptions temporaires de service, de pertes de données ou du comportement des autres utilisateurs.</p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800 flex justify-end">
+                <button
+                  onClick={() => setShowTermsModal(false)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-md active:scale-95 animate-pulse"
+                >
+                  J'accepte les conditions
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
